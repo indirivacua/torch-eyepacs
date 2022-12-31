@@ -6,9 +6,17 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import requests
 import torch
+
+from EyeQ_process import process
 from PIL import Image
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.utils import check_integrity, extract_archive
+
+
+def test_func1(data_path, split):
+    from shutil import move, rmtree
+
+    rmtree(data_path / split), move(data_path / "sample", data_path / split)
 
 
 def check_exists(root: Path, resources: List[Tuple[str, str]]) -> bool:
@@ -44,72 +52,84 @@ class EyeQ(VisionDataset):
 
         self.split = split
 
-        # Setup train or testing path
+        # Setup train or testing path as root
         images_root = targ_dir / split
         # Setup transforms
         super().__init__(
             images_root, transform=transform, target_transform=target_transform
         )
 
-        self.__download()
-        self.__preprocess()
+        root: Path = self.root
+        self.data_path = root.parent
+
+        self.__download_dataset()
+
+        self.__download_results()
 
         # Get all image paths
         self.paths = list(Path(images_root).glob("*.jpeg"))
 
-    def __download(
+        self.__preprocess()
+
+        self.df_labels = pd.read_csv(
+            self.root.parent / f"Label_EyeQ_{self.split}.csv", sep=","
+        )
+
+    def __download_dataset(
         self,
     ) -> None:
-        root: Path = self.root
-
-        data_path = root.parent
-
         main_zip_resource = [(EyeQ.main_zip_name, EyeQ.main_zip_hash)]
-        if check_exists(data_path, main_zip_resource):
+        if check_exists(self.data_path, main_zip_resource):
             return
 
         # If the image folder doesn't exist, download it and prepare it...
-        if not root.is_dir():
-            root.mkdir(parents=True, exist_ok=True)
+        if not self.root.is_dir():
+            self.root.mkdir(parents=True, exist_ok=True)
 
             # Download diabetic-retinopathy-detection.zip
             # TODO: change sample.zip to train/test data
             command = "kaggle competitions download -c diabetic-retinopathy-detection -f sample.zip"
             current_path = Path.cwd()
-            os.chdir(data_path)
+            os.chdir(self.data_path)
             print("Downloading dataset (88.29gbs) this may take a while...")
             subprocess.run(command, shell=True)
             os.chdir(current_path)
-            if not check_exists(data_path, main_zip_resource):
+            if not check_exists(self.data_path, main_zip_resource):
                 raise OSError(
                     f"File {EyeQ.main_zip_name} has not been downloaded correctly."
                 )
 
-            # Download EyeQ results
-            # TODO: download EyeQ_process_main.py over the DR-dataset (clone it from GitHub?)
-            with open(data_path / f"Label_EyeQ_{self.split}.csv", "wb") as f:
-                request = requests.get(
-                    f"https://raw.githubusercontent.com/HzFu/EyeQ/master/data/Label_EyeQ_{self.split}.csv"
-                )
-                print(f"Downloading Label_EyeQ_{self.split}.csv...")
-                f.write(request.content)
-
             # Unzip diabetic-retinopathy-detection.zip
-            for file_path in os.listdir(data_path):
-                if os.path.isfile(os.path.join(data_path, file_path)):
-                    if (data_path / file_path).suffix == ".zip":
-                        extract_archive(data_path / file_path, data_path)
+            # TODO: unzip only split set
+            for file_path in os.listdir(self.data_path):
+                if os.path.isfile(os.path.join(self.data_path, file_path)):
+                    main_zip_path = self.data_path / file_path
+                    if main_zip_path.suffix == ".zip":
+                        print(f"Extracting {main_zip_path} to {self.data_path}...")
+                        extract_archive(self.data_path / file_path, self.data_path)
 
-            # TEST PURPOSES
-            from shutil import move, rmtree
+            test_func1(self.data_path, self.split)  # TEST PURPOSES
 
-            rmtree(data_path / "train"), move(data_path / "sample", data_path / "train")
+    def __download_results(
+        self,
+    ) -> None:
+        # Download EyeQ results
+        with open(self.data_path / f"Label_EyeQ_{self.split}.csv", "wb") as f:
+            request = requests.get(
+                f"https://raw.githubusercontent.com/HzFu/EyeQ/master/data/Label_EyeQ_{self.split}.csv"
+            )
+            print(f"Downloading Label_EyeQ_{self.split}.csv...")
+            f.write(request.content)
 
     def __preprocess(
         self,
     ) -> None:
-        # TODO: execute EyeQ_process_main.py over the DR-dataset
-        pass
+        image_list = [str(img) for img in self.paths]
+        save_path = str(self.data_path / self.split)
+
+        process(image_list, save_path)
+
+        self.paths = list(Path(save_path).glob("*.png"))
 
     def load_image(self, index: int) -> Image.Image:
         "Opens an image via a path and returns it."
@@ -125,11 +145,12 @@ class EyeQ(VisionDataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
         "Returns one sample of data, data and label (X, y)."
 
-        df = pd.read_csv(self.root.parent / f"Label_EyeQ_{self.split}.csv", sep=",")
-
         img = self.load_image(index)
 
-        query = df[df["image"] == str(self.paths[index]).rsplit("\\", 1)[-1]]
+        df = self.df_labels
+        query = df[
+            df["image"] == str(self.paths[index]).rsplit("\\", 1)[-1][:-4] + ".jpeg"
+        ]
         class_idx = query["quality"].iat[0]
 
         # Transform if necessary
@@ -154,11 +175,11 @@ if __name__ == "__main__":
         ]
     )
 
-    split = "train"
-
     # Setup path to data folder
     data_path = Path("~/.torchvision/")
     image_path = data_path / "eyeq"
+
+    split = "train"
 
     dataset = EyeQ(image_path, split=split, transform=data_transform)  # train_data
     n = len(dataset)
@@ -174,18 +195,19 @@ if __name__ == "__main__":
     ) -> None:
         targ_image, targ_label = dataset[targ_sample][0], dataset[targ_sample][1]
 
-        # Adjust image tensor shape for plotting:
+        # Adjust image tensor shape for plotting (rearrange the order of dimensions)
         # [color_channels, height, width] -> [height, width, color_channels]
-        targ_image_adjust = targ_image.permute(
-            1, 2, 0
-        )  # Rearrange the order of dimensions
+        targ_image_adjust = (
+            targ_image.permute(1, 2, 0) if torch.is_tensor(targ_image) else targ_image
+        )
 
         # Setup plot
         plt.imshow(targ_image_adjust)
         plt.axis("off")
-        plt.title(
-            f"class: {EyeQ.classes_names[targ_label]} \nshape: {targ_image_adjust.shape}"
-        )
+        title = f"class: {EyeQ.classes_names[targ_label]}"
+        if torch.is_tensor(targ_image_adjust):
+            title = title + f"\nshape: {targ_image_adjust.shape}"
+        plt.title(title)
 
         # Plot the adjusted sample
         plt.show()
@@ -208,6 +230,8 @@ if __name__ == "__main__":
     while img_custom is None:
         try:
             img_custom, label_custom = next(iter(train_dataloader_custom))
+        except (StopIteration, TypeError):
+            break
         except:
             pass
 
