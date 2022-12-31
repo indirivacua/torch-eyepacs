@@ -4,3 +4,4 @@ torchvision
 pandas
 Pillow
 requests
+kaggle

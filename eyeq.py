@@ -1,5 +1,5 @@
 import os
-import zipfile
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -8,6 +8,11 @@ import requests
 import torch
 from PIL import Image
 from torchvision.datasets import VisionDataset
+from torchvision.datasets.utils import check_integrity, extract_archive
+
+
+def check_exists(root: Path, resources: List[Tuple[str, str]]) -> bool:
+    return all(check_integrity(root / file, md5) for file, md5 in resources)
 
 
 class EyeQ(VisionDataset):
@@ -17,6 +22,11 @@ class EyeQ(VisionDataset):
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
     classes_names = ["Gradable", "Usable", "Ungradable"]
+
+    # TODO: get diabetic-retinopathy-detection hashes
+    # > certutil -hashfile sample.zip MD5
+    main_zip_name = "sample.zip"
+    main_zip_hash = "d8da149561d61d6f97256f0dea3552ea"
 
     def __init__(
         self,
@@ -51,20 +61,29 @@ class EyeQ(VisionDataset):
         self,
     ) -> None:
         root: Path = self.root
+
+        data_path = root.parent
+
+        main_zip_resource = [(EyeQ.main_zip_name, EyeQ.main_zip_hash)]
+        if check_exists(data_path, main_zip_resource):
+            return
+
         # If the image folder doesn't exist, download it and prepare it...
         if not root.is_dir():
             root.mkdir(parents=True, exist_ok=True)
 
-            data_path = root.parent
-
             # Download diabetic-retinopathy-detection.zip
-            # TODO: download it from Kaggle
-            with open(data_path / "train.zip", "wb") as f:
-                request = requests.get(
-                    "https://github.com/indirivacua/eyeq-sample/raw/main/train.zip"  # TEST PURPOSES
+            # TODO: change sample.zip to train/test data
+            command = "kaggle competitions download -c diabetic-retinopathy-detection -f sample.zip"
+            current_path = Path.cwd()
+            os.chdir(data_path)
+            print("Downloading dataset (88.29gbs) this may take a while...")
+            subprocess.run(command, shell=True)
+            os.chdir(current_path)
+            if not check_exists(data_path, main_zip_resource):
+                raise OSError(
+                    f"File {EyeQ.main_zip_name} has not been downloaded correctly."
                 )
-                print("Downloading train.zip...")
-                f.write(request.content)
 
             # Download EyeQ results
             # TODO: download EyeQ_process_main.py over the DR-dataset (clone it from GitHub?)
@@ -76,14 +95,15 @@ class EyeQ(VisionDataset):
                 f.write(request.content)
 
             # Unzip diabetic-retinopathy-detection.zip
-            # TODO: do not works with multiple files (check for extract_archive func from torchvision)
             for file_path in os.listdir(data_path):
                 if os.path.isfile(os.path.join(data_path, file_path)):
                     if (data_path / file_path).suffix == ".zip":
-                        with zipfile.ZipFile(data_path / file_path, "r") as zip_ref:
-                            print(f"Unzipping {file_path}..."), zip_ref.extractall(
-                                data_path
-                            )
+                        extract_archive(data_path / file_path, data_path)
+
+            # TEST PURPOSES
+            from shutil import move, rmtree
+
+            rmtree(data_path / "train"), move(data_path / "sample", data_path / "train")
 
     def __preprocess(
         self,
@@ -170,7 +190,7 @@ if __name__ == "__main__":
         # Plot the adjusted sample
         plt.show()
 
-    display_image(dataset, 2)
+    display_image(dataset, 2)  # 13_left
 
     ################################################################################################
 
@@ -180,11 +200,16 @@ if __name__ == "__main__":
         dataset=dataset,  # use custom created train Dataset
         batch_size=1,  # how many samples per batch?
         num_workers=0,  # how many subprocesses to use for data loading? (higher = more)
-        shuffle=True,
-    )  # shuffle the data?
+        shuffle=True,  # shuffle the data?
+    )
 
     # Get image and label from custom DataLoader
-    img_custom, label_custom = next(iter(train_dataloader_custom))
+    img_custom = None
+    while img_custom is None:
+        try:
+            img_custom, label_custom = next(iter(train_dataloader_custom))
+        except:
+            pass
 
     # Batch size will now be 1, try changing the batch_size parameter above and see what happens
     print(
