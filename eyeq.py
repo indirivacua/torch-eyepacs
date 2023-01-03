@@ -91,7 +91,7 @@ class EyeQ(VisionDataset):
             command = "kaggle competitions download -c diabetic-retinopathy-detection -f sample.zip"
             current_path = Path.cwd()
             os.chdir(self.data_path)
-            print("Downloading dataset (88.29gbs) this may take a while...")
+            print("Downloading dataset (88.29gbs), this may take a while...")
             subprocess.run(command, shell=True)
             os.chdir(current_path)
             if not check_exists(self.data_path, main_zip_resource):
@@ -133,7 +133,10 @@ class EyeQ(VisionDataset):
 
     def load_image(self, index: int) -> Image.Image:
         "Opens an image via a path and returns it."
-        image_path = self.paths[index]
+        image_name = self.df_labels["image"].iloc[index]
+        image_name = image_name[:-4]+"png"
+        image_path = self.root / image_name
+
         return Image.open(image_path)
 
     # Overwrites the __len__() method (optional but recommended for subclasses of torch.utils.data.Dataset)
@@ -146,18 +149,13 @@ class EyeQ(VisionDataset):
         "Returns one sample of data, data and label (X, y)."
 
         img = self.load_image(index)
-
-        df = self.df_labels
-        query = df[
-            df["image"] == str(self.paths[index]).rsplit("\\", 1)[-1][:-4] + ".jpeg"
-        ]
-        class_idx = query["quality"].iat[0]
+        class_idx = self.df_labels["quality"].iloc[index]
 
         # Transform if necessary
         if self.transform:
-            return self.transform(img), class_idx  # return data, label (X, y)
-        else:
-            return img, class_idx  # return data, label (X, y)
+            img = self.transform(img)
+        
+        return img, class_idx  # return data, label (X, y)
 
 
 if __name__ == "__main__":
