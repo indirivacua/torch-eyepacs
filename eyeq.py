@@ -1,5 +1,4 @@
 import os
-import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -8,6 +7,8 @@ import requests
 import torch
 
 from EyeQ_process import process
+
+from kaggle.api.kaggle_api_extended import KaggleApi
 from PIL import Image
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.utils import check_integrity, extract_archive
@@ -62,6 +63,9 @@ class EyeQ(VisionDataset):
         root: Path = self.root
         self.data_path = root.parent
 
+        self.api = KaggleApi()
+        self.api.authenticate()
+
         self.__download_dataset()
 
         self.__download_results()
@@ -87,13 +91,11 @@ class EyeQ(VisionDataset):
             self.root.mkdir(parents=True, exist_ok=True)
 
             # Download diabetic-retinopathy-detection.zip
-            # TODO: change sample.zip to train/test data
-            command = "kaggle competitions download -c diabetic-retinopathy-detection -f sample.zip"
-            current_path = Path.cwd()
-            os.chdir(self.data_path)
             print("Downloading dataset (88.29gbs) this may take a while...")
-            subprocess.run(command, shell=True)
-            os.chdir(current_path)
+            # self.api.competition_download_files('diabetic-retinopathy-detection', path=self.data_path)
+            self.api.competition_download_file(
+                "diabetic-retinopathy-detection", "sample.zip", path=self.data_path
+            )  # TEST PURPOSES
             if not check_exists(self.data_path, main_zip_resource):
                 raise OSError(
                     f"File {EyeQ.main_zip_name} has not been downloaded correctly."
