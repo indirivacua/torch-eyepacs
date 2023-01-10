@@ -1,41 +1,19 @@
-import os
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import pandas as pd
 import requests
 import torch
+from eyepacs import EyePACS
 
 from EyeQ_process import process
 
-from kaggle.api.kaggle_api_extended import KaggleApi
-from PIL import Image
-from torchvision.datasets import VisionDataset
-from torchvision.datasets.utils import check_integrity, extract_archive
 
-
-def test_func1(data_path, split):
-    from shutil import move, rmtree
-
-    rmtree(data_path / split), move(data_path / "sample", data_path / split)
-
-
-def check_exists(root: Path, resources: List[Tuple[str, str]]) -> bool:
-    return all(check_integrity(root / file, md5) for file, md5 in resources)
-
-
-class EyeQ(VisionDataset):
+class EyeQ(EyePACS):
 
     # Create EyeQ dataset class attributes
-    image_size = 640
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
+    image_extension = ".png"
+    result_label = "quality"
     classes_names = ["Gradable", "Usable", "Ungradable"]
-
-    # TODO: get diabetic-retinopathy-detection hashes
-    # > certutil -hashfile sample.zip MD5
-    main_zip_name = "sample.zip"
-    main_zip_hash = "d8da149561d61d6f97256f0dea3552ea"
 
     def __init__(
         self,
@@ -44,79 +22,25 @@ class EyeQ(VisionDataset):
         transform=None,
         target_transform=None,
     ) -> None:
-        assert split in ["train", "val", "test"]
-
-        if isinstance(targ_dir, str):
-            targ_dir = Path(targ_dir)
-
-        targ_dir = targ_dir.expanduser()
-
-        self.split = split
-
-        # Setup train or testing path as root
-        images_root = targ_dir / split
-        # Setup transforms
-        super().__init__(
-            images_root, transform=transform, target_transform=target_transform
-        )
-
-        root: Path = self.root
-        self.data_path = root.parent
-
-        self.api = KaggleApi()
-        self.api.authenticate()
-
-        self.__download_dataset()
-
-        self.__download_results()
-
-        # Get all image paths
-        self.paths = list(Path(images_root).glob("*.jpeg"))
+        super().__init__(targ_dir, split, transform, target_transform)
 
         self.__preprocess()
 
-        self.df_labels = pd.read_csv(
-            self.root.parent / f"Label_EyeQ_{self.split}.csv", sep=","
+        self.label_csv_name = f"Label_EyeQ_{split}.csv"
+
+        self.__download_results()
+
+        self.df_labels = pd.read_csv(self.data_path / self.label_csv_name, sep=",")
+
+        self.df_labels["image"] = self.df_labels["image"].apply(
+            lambda S: S.strip(".jpeg")
         )
-
-    def __download_dataset(
-        self,
-    ) -> None:
-        main_zip_resource = [(EyeQ.main_zip_name, EyeQ.main_zip_hash)]
-        if check_exists(self.data_path, main_zip_resource):
-            return
-
-        # If the image folder doesn't exist, download it and prepare it...
-        if not self.root.is_dir():
-            self.root.mkdir(parents=True, exist_ok=True)
-
-            # Download diabetic-retinopathy-detection.zip
-            print("Downloading dataset (88.29gbs) this may take a while...")
-            # self.api.competition_download_files('diabetic-retinopathy-detection', path=self.data_path)
-            self.api.competition_download_file(
-                "diabetic-retinopathy-detection", "sample.zip", path=self.data_path
-            )  # TEST PURPOSES
-            if not check_exists(self.data_path, main_zip_resource):
-                raise OSError(
-                    f"File {EyeQ.main_zip_name} has not been downloaded correctly."
-                )
-
-            # Unzip diabetic-retinopathy-detection.zip
-            # TODO: unzip only split set
-            for file_path in os.listdir(self.data_path):
-                if os.path.isfile(os.path.join(self.data_path, file_path)):
-                    main_zip_path = self.data_path / file_path
-                    if main_zip_path.suffix == ".zip":
-                        print(f"Extracting {main_zip_path} to {self.data_path}...")
-                        extract_archive(self.data_path / file_path, self.data_path)
-
-            test_func1(self.data_path, self.split)  # TEST PURPOSES
 
     def __download_results(
         self,
     ) -> None:
         # Download EyeQ results
-        with open(self.data_path / f"Label_EyeQ_{self.split}.csv", "wb") as f:
+        with open(self.data_path / self.label_csv_name, "wb") as f:
             request = requests.get(
                 f"https://raw.githubusercontent.com/HzFu/EyeQ/master/data/Label_EyeQ_{self.split}.csv"
             )
@@ -132,34 +56,6 @@ class EyeQ(VisionDataset):
         process(image_list, save_path)
 
         self.paths = list(Path(save_path).glob("*.png"))
-
-    def load_image(self, index: int) -> Image.Image:
-        "Opens an image via a path and returns it."
-        image_path = self.paths[index]
-        return Image.open(image_path)
-
-    # Overwrites the __len__() method (optional but recommended for subclasses of torch.utils.data.Dataset)
-    def __len__(self) -> int:
-        "Returns the total number of samples."
-        return len(self.paths)
-
-    # Overwrites the __getitem__() method (required for subclasses of torch.utils.data.Dataset)
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
-        "Returns one sample of data, data and label (X, y)."
-
-        img = self.load_image(index)
-
-        df = self.df_labels
-        query = df[
-            df["image"] == str(self.paths[index]).rsplit("\\", 1)[-1][:-4] + ".jpeg"
-        ]
-        class_idx = query["quality"].iat[0]
-
-        # Transform if necessary
-        if self.transform:
-            return self.transform(img), class_idx  # return data, label (X, y)
-        else:
-            return img, class_idx  # return data, label (X, y)
 
 
 if __name__ == "__main__":
