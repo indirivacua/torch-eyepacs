@@ -1,5 +1,6 @@
 from test_funcs import *
 
+import glob
 import os
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -31,8 +32,8 @@ class EyePACS(VisionDataset):
 
     # TODO: get diabetic-retinopathy-detection.zip hash
     # > certutil -hashfile <filename> MD5
-    main_zip_name = "sample.zip"
-    main_zip_hash = "d8da149561d61d6f97256f0dea3552ea"
+    main_zip_name = "diabetic-retinopathy-detection.zip"
+    main_zip_hash = ""
 
     def __init__(
         self,
@@ -62,7 +63,8 @@ class EyePACS(VisionDataset):
         self.api = KaggleApi()
         self.api.authenticate()
 
-        self.__download_dataset()
+        #self.__download_dataset()
+        self.__extract_dataset()
 
         # Get all image paths
         self.paths = list(Path(images_root).glob("*.jpeg"))
@@ -83,24 +85,41 @@ class EyePACS(VisionDataset):
             # Download diabetic-retinopathy-detection.zip
             print("Downloading dataset (88.29gbs), this may take a while...")
 
-            # self.api.competition_download_files('diabetic-retinopathy-detection', path=self.data_path)
-
-            test_func2(self.api, self.data_path)  # TEST PURPOSES
+            self.api.competition_download_files(
+                "diabetic-retinopathy-detection", path=self.data_path
+            )
 
             if not check_exists(self.data_path, main_zip_resource):
                 raise OSError(
                     f"File {self.main_zip_name} has not been downloaded correctly."
                 )
 
-            # Unzip diabetic-retinopathy-detection.zip
-            for file_path in os.listdir(self.data_path):
-                if os.path.isfile(os.path.join(self.data_path, file_path)):
-                    main_zip_path = self.data_path / file_path
-                    if main_zip_path.suffix == ".zip":
-                        print(f"Extracting {main_zip_path} to {self.data_path}...")
-                        extract_archive(self.data_path / file_path, self.data_path)
+    def __extract_dataset(
+        self,
+    ) -> None:
+        # Unzip diabetic-retinopathy-detection.zip
+        extract_archive(self.data_path / self.main_zip_name, self.data_path)
 
-            test_func1(self.data_path, self.split)  # TEST PURPOSES
+        zip_prefix = f"{self.split}.zip."
+
+        # N number of parts
+        parts = glob.glob(str(self.data_path / (zip_prefix + "*")))
+        n = len(parts)
+
+        # Concatenate
+        with open(self.data_path / f"{self.split}.zip", "wb") as outfile:
+            for i in range(1, n + 1):
+                filename = zip_prefix + str(i).zfill(3)
+                with open(self.data_path / filename, "rb") as infile:
+                    outfile.write(infile.read())
+
+        # Extract
+        for file_path in os.listdir(self.data_path):
+            if os.path.isfile(os.path.join(self.data_path, file_path)):
+                main_zip_path = self.data_path / file_path
+                if main_zip_path.suffix == ".zip":
+                    print(f"Extracting {main_zip_path} to {self.data_path}...")
+                    extract_archive(self.data_path / file_path, self.data_path)
 
     def load_image(self, index: int) -> Image.Image:
         "Opens an image via a path and returns it."
