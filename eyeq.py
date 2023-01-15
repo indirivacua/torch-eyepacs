@@ -42,7 +42,7 @@ class EyeQ(EyePACS):
         # Download EyeQ results
         with open(self.data_path / self.label_csv_name, "wb") as f:
             request = requests.get(
-                f"https://raw.githubusercontent.com/HzFu/EyeQ/master/data/Label_EyeQ_{self.split}.csv"
+                f"https://raw.githubusercontent.com/HzFu/EyeQ/master/data/{self.label_csv_name}"
             )
             print(f"Downloading Label_EyeQ_{self.split}.csv...")
             f.write(request.content)

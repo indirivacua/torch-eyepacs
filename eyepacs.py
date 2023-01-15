@@ -81,7 +81,8 @@ class EyePACS(VisionDataset):
             self.root.mkdir(parents=True, exist_ok=True)
 
             # Download diabetic-retinopathy-detection.zip
-            print("Downloading dataset (88.29gbs) this may take a while...")
+            print("Downloading dataset (88.29gbs), this may take a while...")
+
             # self.api.competition_download_files('diabetic-retinopathy-detection', path=self.data_path)
 
             test_func2(self.api, self.data_path)  # TEST PURPOSES
