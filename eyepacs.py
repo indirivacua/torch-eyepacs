@@ -1,5 +1,3 @@
-from test_funcs import *
-
 import glob
 import os
 from pathlib import Path
@@ -33,7 +31,7 @@ class EyePACS(VisionDataset):
     # TODO: get diabetic-retinopathy-detection.zip hash
     # > certutil -hashfile <filename> MD5
     main_zip_name = "diabetic-retinopathy-detection.zip"
-    main_zip_hash = ""
+    main_zip_hash = "596cf4ecabf92e5e621ac7e9f9181471"
 
     def __init__(
         self,
@@ -63,7 +61,7 @@ class EyePACS(VisionDataset):
         self.api = KaggleApi()
         self.api.authenticate()
 
-        #self.__download_dataset()
+        self.__download_dataset()
         self.__extract_dataset()
 
         # Get all image paths
@@ -120,6 +118,8 @@ class EyePACS(VisionDataset):
                 if main_zip_path.suffix == ".zip":
                     print(f"Extracting {main_zip_path} to {self.data_path}...")
                     extract_archive(self.data_path / file_path, self.data_path)
+
+        os.remove(self.data_path / f"{self.split}.zip")
 
     def load_image(self, index: int) -> Image.Image:
         "Opens an image via a path and returns it."
