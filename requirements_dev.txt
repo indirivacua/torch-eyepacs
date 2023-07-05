@@ -3,3 +3,4 @@ matplotlib
 torchvision
 pandas
 kaggle
+opencv-python
