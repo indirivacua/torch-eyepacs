@@ -123,7 +123,10 @@ class EyePACS(VisionDataset):
 
     def load_image(self, index: int) -> Image.Image:
         "Opens an image via a path and returns it."
-        image_path = self.paths[index]
+        image_name = self.df_labels["image"].iloc[index]
+        image_name = image_name[:-4]+"png"
+        image_path = self.root / image_name
+
         return Image.open(image_path)
 
     # Overwrites the __len__() method (optional but recommended for subclasses of torch.utils.data.Dataset)
@@ -136,19 +139,13 @@ class EyePACS(VisionDataset):
         "Returns one sample of data, data and label (X, y)."
 
         img = self.load_image(index)
-
-        df = self.df_labels
-        image_name = str(self.paths[index]).rsplit("\\", 1)[-1][
-            : -len(self.image_extension)
-        ]
-        query = df[df["image"] == image_name]
-        class_idx = query[self.result_label].iat[0]
+        class_idx = self.df_labels["quality"].iloc[index]
 
         # Transform if necessary
         if self.transform:
-            return self.transform(img), class_idx  # return data, label (X, y)
-        else:
-            return img, class_idx  # return data, label (X, y)
+            img = self.transform(img)
+        
+        return img, class_idx  # return data, label (X, y)
 
 
 if __name__ == "__main__":
