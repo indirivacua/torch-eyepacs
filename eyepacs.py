@@ -124,7 +124,7 @@ class EyePACS(VisionDataset):
     def load_image(self, index: int) -> Image.Image:
         "Opens an image via a path and returns it."
         image_name = self.df_labels["image"].iloc[index]
-        image_name = image_name[:-4]+"png"
+        image_name = image_name + self.image_extension
         image_path = self.root / image_name
 
         return Image.open(image_path)
@@ -139,12 +139,12 @@ class EyePACS(VisionDataset):
         "Returns one sample of data, data and label (X, y)."
 
         img = self.load_image(index)
-        class_idx = self.df_labels["quality"].iloc[index]
+        class_idx = self.df_labels[self.result_label].iloc[index]
 
         # Transform if necessary
         if self.transform:
             img = self.transform(img)
-        
+
         return img, class_idx  # return data, label (X, y)
 
 
