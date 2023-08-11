@@ -1,5 +1,6 @@
 import glob
 import os
+import zipfile
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -28,8 +29,6 @@ class EyePACS(VisionDataset):
     label_csv_name = "trainLabels.csv"
     classes_names = ["No DR", "Mild", "Moderate", "Severe", "Proliferative DR"]
 
-    # TODO: get diabetic-retinopathy-detection.zip hash
-    # > certutil -hashfile <filename> MD5
     main_zip_name = "diabetic-retinopathy-detection.zip"
     main_zip_hash = "596cf4ecabf92e5e621ac7e9f9181471"
 
@@ -96,9 +95,16 @@ class EyePACS(VisionDataset):
         self,
     ) -> None:
         # Unzip diabetic-retinopathy-detection.zip
-        extract_archive(self.data_path / self.main_zip_name, self.data_path)
+        # extract_archive(self.data_path / self.main_zip_name, self.data_path)
 
         zip_prefix = f"{self.split}.zip."
+
+        with zipfile.ZipFile(self.data_path / self.main_zip_name, 'r') as zip_ref:
+            for file in zip_ref.namelist():
+                if file.startswith(zip_prefix):
+                    zip_ref.extract(file, self.data_path)
+                if not file.startswith(('train.zip', 'test.zip')):
+                    zip_ref.extract(file, self.data_path)
 
         # N number of parts
         parts = glob.glob(str(self.data_path / (zip_prefix + "*")))
@@ -111,10 +117,16 @@ class EyePACS(VisionDataset):
                 with open(self.data_path / filename, "rb") as infile:
                     outfile.write(infile.read())
 
+        for filename in os.listdir(self.data_path):
+            if filename.startswith(zip_prefix):
+                os.remove(self.data_path / filename)
+
         # Extract
         for file_path in os.listdir(self.data_path):
             if os.path.isfile(os.path.join(self.data_path, file_path)):
                 main_zip_path = self.data_path / file_path
+                if os.path.basename(main_zip_path) == self.main_zip_name:
+                    continue
                 if main_zip_path.suffix == ".zip":
                     print(f"Extracting {main_zip_path} to {self.data_path}...")
                     extract_archive(self.data_path / file_path, self.data_path)
