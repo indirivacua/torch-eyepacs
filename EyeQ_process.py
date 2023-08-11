@@ -5,10 +5,10 @@ import cv2 as cv
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-def process(image_list, save_path):
+def process(image_list, save_path, extension):
     
     for image_path in image_list:
-        dst_image = os.path.splitext(image_path.split('/')[-1])[0]+'.png'
+        dst_image = os.path.splitext(image_path.split('/')[-1])[0]+extension#'.png'
         dst_path = os.path.join(save_path, dst_image)
         if os.path.exists(dst_path):
             print('continue...')

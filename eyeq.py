@@ -53,9 +53,9 @@ class EyeQ(EyePACS):
         image_list = [str(img) for img in self.paths]
         save_path = str(self.data_path / self.split)
 
-        process(image_list, save_path)
+        process(image_list, save_path, self.image_extension)
 
-        self.paths = list(Path(save_path).glob("*.png"))
+        self.paths = list(Path(save_path).glob("*" + self.image_extension))
 
 
 if __name__ == "__main__":

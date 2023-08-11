@@ -64,7 +64,7 @@ class EyePACS(VisionDataset):
         self.__extract_dataset()
 
         # Get all image paths
-        self.paths = list(Path(images_root).glob("*.jpeg"))
+        self.paths = list(Path(images_root).glob("*" + self.image_extension))
 
         self.df_labels = pd.read_csv(self.data_path / self.label_csv_name, sep=",")
 
@@ -99,11 +99,11 @@ class EyePACS(VisionDataset):
 
         zip_prefix = f"{self.split}.zip."
 
-        with zipfile.ZipFile(self.data_path / self.main_zip_name, 'r') as zip_ref:
+        with zipfile.ZipFile(self.data_path / self.main_zip_name, "r") as zip_ref:
             for file in zip_ref.namelist():
                 if file.startswith(zip_prefix):
                     zip_ref.extract(file, self.data_path)
-                if not file.startswith(('train.zip', 'test.zip')):
+                if not file.startswith(("train.zip", "test.zip")):
                     zip_ref.extract(file, self.data_path)
 
         # N number of parts
