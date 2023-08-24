@@ -11,7 +11,7 @@ from EyeQ_process import process
 class EyeQ(EyePACS):
 
     # Create EyeQ dataset class attributes
-    image_extension = ".png"
+    image_extension = ".jpg"
     result_label = "quality"
     classes_names = ["Gradable", "Usable", "Ungradable"]
 

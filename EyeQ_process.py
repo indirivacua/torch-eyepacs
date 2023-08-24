@@ -27,10 +27,17 @@ def process(image_list, save_path, extension):
 
 if __name__ == "__main__":
 
-    image_list = glob.glob(os.path.join('./original_img', '*.jpeg'))
-    save_path = prep.fold_dir('./original_crop')
+    for i in range(3):
+        image_list = glob.glob(os.path.join(f'/mnt/sda2/datasets/eyeq/test/{i}', '*.jpeg'))
+        os.makedirs(f'/mnt/sda2/datasets/eyeq/test_preprocess/{i}', exist_ok = True)
+        save_path = prep.fold_dir(f'/mnt/sda2/datasets/eyeq/test_preprocess/{i}')
+        print(image_list[:10], save_path)
+        process(image_list, save_path, ".jpg")
 
-    process(image_list, save_path)
+    #image_list = glob.glob(os.path.join('./original_img', '*.jpeg'))
+    #save_path = prep.fold_dir('./original_crop')
+
+    #process(image_list, save_path)
 
         
 
